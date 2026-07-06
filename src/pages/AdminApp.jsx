@@ -6,6 +6,9 @@ import { btnStyle, inputStyle, labelStyle, cardStyle } from "../utils/theme";
 import Toast from "../components/Toast";
 import DeleteModal from "../components/DeleteModal";
 import PaymentModal from "../components/PaymentModal";
+import Sidebar from "../components/Sidebar";
+import EditProfileModal from "../components/EditProfileModal";
+import Avatar from "../components/Avatar";
 
 // ── Dashboard tab ────────────────────────────────────────────────────────────
 function Dashboard({ borrowers, onDelete, onViewPayments }) {
@@ -323,13 +326,70 @@ function Collect({ borrowers, onRecord }) {
   );
 }
 
+// ── Monitor Users tab ────────────────────────────────────────────────────────
+function MonitorUsers({ borrowers }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending: true });
+      setUsers(data || []);
+      setLoading(false);
+    })();
+  }, []);
+
+  if (loading) return <div style={{ textAlign: "center", padding: 40, color: "#8b949e" }}>Loading...</div>;
+
+  if (!users.length)
+    return (
+      <div style={{ textAlign: "center", padding: "48px 20px", color: "#8b949e" }}>
+        <div style={{ fontSize: 48, marginBottom: 12 }}>👥</div>
+        <p style={{ fontSize: 14 }}>No registered users yet.</p>
+      </div>
+    );
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
+        Registered Users
+      </div>
+      {users.map((u) => {
+        const linked = borrowers.find((b) => b.user_id === u.id);
+        return (
+          <div key={u.id} style={{ ...cardStyle, display: "flex", alignItems: "center", gap: 12 }}>
+            <Avatar name={u.full_name || u.email} avatarUrl={u.avatar_url} size={40} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 14, fontWeight: 700 }}>{u.full_name || "Unnamed"}</span>
+                <span style={{ background: u.role === "admin" ? "#2a1a3a" : "#1a2a3a", color: u.role === "admin" ? "#c297ff" : "#79c0ff", border: `1px solid ${u.role === "admin" ? "#6f42c1" : "#1f6feb"}`, borderRadius: 6, padding: "1px 6px", fontSize: 9, fontWeight: 700 }}>
+                  {u.role.toUpperCase()}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: "#8b949e", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.email}</div>
+              <div style={{ fontSize: 11, color: linked ? "#3fb950" : "#8b949e", marginTop: 2 }}>
+                {linked ? `🔗 Linked to ${linked.name} (${linked.loan_type})` : "Not linked to any loan"}
+              </div>
+            </div>
+            <div style={{ fontSize: 10, color: "#8b949e", whiteSpace: "nowrap" }}>
+              {new Date(u.created_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Admin App ────────────────────────────────────────────────────────────────
 export default function AdminApp() {
-  const { signOut } = useAuth();
+  const { profile, signOut, refreshProfile } = useAuth();
   const [tab, setTab] = useState("dashboard");
+  const [loanFilter, setLoanFilter] = useState("all");
   const [borrowers, setBorrowers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState({ type: null, id: null });
+  const [editingProfile, setEditingProfile] = useState(false);
   const [toast, setToast] = useState({ msg: "", color: "" });
 
   const showToast = (msg, color = "#238636") => {
@@ -386,41 +446,49 @@ export default function AdminApp() {
 
   const modalBorrower = borrowers.find((b) => b.id === modal.id);
 
-  const tabs = [
-    { key: "dashboard", label: "📊 Dashboard" },
-    { key: "add", label: "➕ Add Borrower" },
-    { key: "collect", label: "💵 Collect" },
-  ];
+  const filteredBorrowers = loanFilter === "all" ? borrowers : borrowers.filter((b) => b.loan_type === loanFilter);
+
+  const tabTitles = {
+    dashboard: "📊 Dashboard",
+    add: "➕ Add Borrower",
+    collect: "💵 Collect",
+    users: "👥 Monitor Users",
+  };
 
   if (loading) return <div style={{ minHeight: "100vh", background: "#0d1117", color: "#8b949e", display: "flex", alignItems: "center", justifyContent: "center" }}>Loading...</div>;
 
   return (
-    <div style={{ fontFamily: "'Segoe UI', sans-serif", background: "#0d1117", color: "#e6edf3", minHeight: "100vh" }}>
+    <div style={{ fontFamily: "'Segoe UI', sans-serif", background: "#0d1117", color: "#e6edf3", minHeight: "100vh", display: "flex" }}>
       <style>{`@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } } input[type=date]::-webkit-calendar-picker-indicator { filter: invert(1); }`}</style>
-      <div style={{ maxWidth: 880, margin: "0 auto", padding: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 0 16px" }}>
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: "#f0b429", letterSpacing: 1, margin: 0 }}>💰 MONEY LENDING</h1>
-            <p style={{ fontSize: 12, color: "#8b949e", marginTop: 4 }}>Admin • Arawan &amp; Paluwagan Manager</p>
-          </div>
-          <button onClick={signOut} style={{ ...btnStyle, background: "transparent", border: "1px solid #30363d", color: "#8b949e", fontSize: 12 }}>Logout</button>
-        </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          {tabs.map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key)} style={{ ...btnStyle, flex: 1, background: tab === t.key ? "#f0b429" : "#161b22", color: tab === t.key ? "#0d1117" : "#8b949e", border: tab === t.key ? "none" : "1px solid #30363d", fontSize: 12 }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
+      <Sidebar
+        tab={tab}
+        setTab={setTab}
+        loanFilter={loanFilter}
+        setLoanFilter={setLoanFilter}
+        profile={profile}
+        onEditProfile={() => setEditingProfile(true)}
+        onLogout={signOut}
+      />
 
-        {tab === "dashboard" && <Dashboard borrowers={borrowers} onDelete={(id) => setModal({ type: "delete", id })} onViewPayments={(id) => setModal({ type: "payments", id })} />}
+      <div style={{ flex: 1, minWidth: 0, padding: 24, maxWidth: 900 }}>
+        <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 18 }}>{tabTitles[tab]}</div>
+
+        {tab === "dashboard" && <Dashboard borrowers={filteredBorrowers} onDelete={(id) => setModal({ type: "delete", id })} onViewPayments={(id) => setModal({ type: "payments", id })} />}
         {tab === "add" && <AddBorrower onAdd={addBorrower} />}
-        {tab === "collect" && <Collect borrowers={borrowers} onRecord={recordPayment} />}
+        {tab === "collect" && <Collect borrowers={filteredBorrowers} onRecord={recordPayment} />}
+        {tab === "users" && <MonitorUsers borrowers={borrowers} />}
       </div>
 
       {modal.type === "payments" && <PaymentModal borrower={modalBorrower} canDelete onClose={() => setModal({ type: null, id: null })} onDeletePayment={deletePayment} />}
       {modal.type === "delete" && <DeleteModal name={modalBorrower?.name} onConfirm={() => deleteBorrower(modal.id)} onCancel={() => setModal({ type: null, id: null })} />}
+      {editingProfile && (
+        <EditProfileModal
+          profile={profile}
+          onClose={() => setEditingProfile(false)}
+          onSaved={() => { setEditingProfile(false); refreshProfile(); showToast("✅ Profile updated!"); }}
+        />
+      )}
 
       <Toast msg={toast.msg} color={toast.color} />
     </div>

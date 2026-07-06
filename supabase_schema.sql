@@ -101,3 +101,26 @@ create policy "payments_delete_admin" on public.payments
 -- 1. Sign up your own admin account in the app (Signup page).
 -- 2. In Supabase Dashboard -> Table Editor -> profiles, find your row and change role from 'user' to 'admin'.
 -- 3. That account can now use the Admin dashboard to add borrowers and record collections.
+
+-- 7. Profile enhancements: email + avatar, editable by the owner
+alter table public.profiles add column if not exists email text;
+alter table public.profiles add column if not exists avatar_url text;
+
+update public.profiles p set email = u.email from auth.users u where p.id = u.id and p.email is null;
+
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profiles (id, role, full_name, email)
+  values (new.id, 'user', coalesce(new.raw_user_meta_data->>'full_name', new.email), new.email);
+
+  update public.borrowers
+  set user_id = new.id
+  where lower(email) = lower(new.email) and user_id is null;
+
+  return new;
+end;
+$$ language plpgsql security definer;
+
+create policy "profiles_update_own" on public.profiles
+  for update using (id = auth.uid()) with check (id = auth.uid() and role = (select role from public.profiles where id = auth.uid()));
