@@ -10,8 +10,8 @@ function SetupNeeded() {
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0d1117", color: "#e6edf3", fontFamily: "'Segoe UI', sans-serif", padding: 16 }}>
       <div style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 14, padding: 24, maxWidth: 460 }}>
-        <h1 style={{ color: "#f0b429", fontSize: 18 }}>⚙️ Setup Required</h1>
-        <p style={{ fontSize: 13, color: "#8b949e", lineHeight: 1.6 }}>
+        <h1 style={{ color: "#f0b429", fontSize: 20 }}>⚙️ Setup Required</h1>
+        <p style={{ fontSize: 15, color: "#8b949e", lineHeight: 1.6 }}>
           Add the Supabase Project URL and anon key to the <code>.env</code> file (VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY),
           then run <code>supabase_schema.sql</code> in the Supabase SQL Editor. Restart the dev server afterwards.
         </p>

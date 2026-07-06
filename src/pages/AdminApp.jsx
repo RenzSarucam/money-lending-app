@@ -1,22 +1,47 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../context/AuthContext";
-import { calcBorrower, fmt, today, computeArawanTotals, computePaluwaganTotals } from "../utils/calc";
+import { calcBorrower, fmt, today, computeArawanTotals, computePaluwaganTotals, getEndDate } from "../utils/calc";
 import { btnStyle, inputStyle, labelStyle, cardStyle } from "../utils/theme";
 import Toast from "../components/Toast";
 import DeleteModal from "../components/DeleteModal";
 import PaymentModal from "../components/PaymentModal";
 import Sidebar from "../components/Sidebar";
 import EditProfileModal from "../components/EditProfileModal";
+import UserDetailModal from "../components/UserDetailModal";
 import Avatar from "../components/Avatar";
+import "../styles/responsive.css";
 
 // ── Dashboard tab ────────────────────────────────────────────────────────────
-function Dashboard({ borrowers, onDelete, onViewPayments }) {
-  if (!borrowers.length)
+function Dashboard({ borrowers: allBorrowers, onDelete, onViewPayments }) {
+  const [loanFilter, setLoanFilter] = useState("all");
+  const borrowers = loanFilter === "all" ? allBorrowers : allBorrowers.filter((b) => b.loan_type === loanFilter);
+
+  const filterTabs = [
+    { key: "all", label: "📁 All Loans" },
+    { key: "arawan", label: "☀️ Arawan" },
+    { key: "paluwagan", label: "🤝 Paluwagan" },
+  ];
+
+  const filterBar = (
+    <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      {filterTabs.map((f) => (
+        <button
+          key={f.key}
+          onClick={() => setLoanFilter(f.key)}
+          style={{ ...btnStyle, flex: 1, background: loanFilter === f.key ? "#f0b429" : "#161b22", color: loanFilter === f.key ? "#0d1117" : "#8b949e", border: loanFilter === f.key ? "none" : "1px solid #30363d" }}
+        >
+          {f.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (!allBorrowers.length)
     return (
       <div style={{ textAlign: "center", padding: "48px 20px", color: "#8b949e" }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
-        <p style={{ fontSize: 14 }}>No borrowers yet. Add your first one!</p>
+        <div style={{ fontSize: 50, marginBottom: 12 }}>📭</div>
+        <p style={{ fontSize: 16 }}>No borrowers yet. Add your first one!</p>
       </div>
     );
 
@@ -38,6 +63,15 @@ function Dashboard({ borrowers, onDelete, onViewPayments }) {
 
   return (
     <div>
+      {filterBar}
+
+      {!sorted.length ? (
+        <div style={{ textAlign: "center", padding: "48px 20px", color: "#8b949e" }}>
+          <div style={{ fontSize: 50, marginBottom: 12 }}>📭</div>
+          <p style={{ fontSize: 16 }}>No {loanFilter} borrowers yet.</p>
+        </div>
+      ) : (
+      <>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
         {[
           { val: borrowers.length, lbl: "Borrowers" },
@@ -46,15 +80,16 @@ function Dashboard({ borrowers, onDelete, onViewPayments }) {
         ].map((s, i) => (
           <div key={i} style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 10, padding: "14px 8px", textAlign: "center" }}>
             <div style={{ fontSize: s.small ? 14 : 22, fontWeight: 700, color: s.color || "#f0b429" }}>{s.val}</div>
-            <div style={{ fontSize: 11, color: "#8b949e", marginTop: 3 }}>{s.lbl}</div>
+            <div style={{ fontSize: 13, color: "#8b949e", marginTop: 3 }}>{s.lbl}</div>
           </div>
         ))}
       </div>
 
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
         All Borrowers
       </div>
 
+      <div className="cards-grid">
       {sorted.map((b) => {
         const c = calcBorrower(b);
         const status = c.isDone ? "done" : c.isLate ? "late" : "active";
@@ -72,28 +107,30 @@ function Dashboard({ borrowers, onDelete, onViewPayments }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 15, fontWeight: 700 }}>{b.name}</span>
-                  <span style={{ background: typeBadge.bg, color: typeBadge.color, border: `1px solid ${typeBadge.border}`, borderRadius: 6, padding: "1px 6px", fontSize: 9, fontWeight: 700 }}>{typeBadge.text}</span>
+                  <span style={{ fontSize: 17, fontWeight: 700 }}>{b.name}</span>
+                  <span style={{ background: typeBadge.bg, color: typeBadge.color, border: `1px solid ${typeBadge.border}`, borderRadius: 6, padding: "1px 6px", fontSize: 11, fontWeight: 700 }}>{typeBadge.text}</span>
                 </div>
-                <div style={{ fontSize: 11, color: "#8b949e", marginTop: 2 }}>
+                <div style={{ fontSize: 13, color: "#8b949e", marginTop: 2 }}>
                   Started: {new Date(b.start_date).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
+                  {" • "}Ends: {getEndDate(b).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
                   {b.email ? ` • ${b.email}` : ""}
                 </div>
               </div>
-              <span style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`, borderRadius: 20, padding: "3px 9px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>{badge.text}</span>
+              <span style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`, borderRadius: 20, padding: "3px 9px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{badge.text}</span>
             </div>
 
             {[
               ["Principal", fmt(b.principal), null],
               ["Total Payable", fmt(b.total_amount), "#f0b429"],
               b.loan_type === "paluwagan"
-                ? ["Monthly Payment", `${fmt(b.monthly_payment)}/month`, null]
+                ? ["Interest/Month", `${fmt(b.monthly_payment)}/month`, null]
                 : ["Daily Payment", `${fmt(b.daily_payment)}/day`, null],
+              ...(b.loan_type === "paluwagan" && !c.isDone ? [["Final Month (+principal)", fmt(b.monthly_payment + b.principal), "#f0b429"]] : []),
               ["Collected", fmt(c.paid), "#3fb950"],
               ["Remaining to Collect", fmt(c.remaining), c.remaining > 0 ? "#f0b429" : "#3fb950"],
               ...(c.isLate && !c.isDone ? [["Short", `-${fmt(c.deficit)}`, "#f85149"]] : []),
             ].map(([k, v, col], i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, margin: "3px 0" }}>
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 14, margin: "3px 0" }}>
                 <span style={{ color: "#8b949e" }}>{k}</span>
                 <span style={{ fontWeight: 600, color: col || "#e6edf3" }}>{v}</span>
               </div>
@@ -102,15 +139,18 @@ function Dashboard({ borrowers, onDelete, onViewPayments }) {
             <div style={{ background: "#21262d", borderRadius: 20, height: 8, margin: "8px 0", overflow: "hidden" }}>
               <div style={{ height: "100%", borderRadius: 20, width: `${c.progress}%`, background: c.isLate ? "linear-gradient(90deg,#f0b429,#e0a420)" : "linear-gradient(90deg,#238636,#3fb950)", transition: "width 0.3s" }} />
             </div>
-            <div style={{ textAlign: "right", fontSize: 11, color: "#8b949e" }}>{c.progress.toFixed(1)}% done • {b.payments.length} payments</div>
+            <div style={{ textAlign: "right", fontSize: 13, color: "#8b949e" }}>{c.progress.toFixed(1)}% done • {b.payments.length} payments</div>
 
-            <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-              <button onClick={() => onViewPayments(b.id)} style={{ ...btnStyle, background: "transparent", border: "1px solid #30363d", color: "#8b949e", fontSize: 11, padding: "6px 12px" }}>📋 Payments</button>
-              <button onClick={() => onDelete(b.id)} style={{ ...btnStyle, background: "#da3633", color: "#fff", fontSize: 11, padding: "6px 12px" }}>🗑️ Delete</button>
+            <div style={{ display: "flex", gap: 6, marginTop: "auto", paddingTop: 10 }}>
+              <button onClick={() => onViewPayments(b.id)} style={{ ...btnStyle, background: "transparent", border: "1px solid #30363d", color: "#8b949e", fontSize: 13, padding: "6px 12px" }}>📋 Payments</button>
+              <button onClick={() => onDelete(b.id)} style={{ ...btnStyle, background: "#da3633", color: "#fff", fontSize: 13, padding: "6px 12px" }}>🗑️ Delete</button>
             </div>
           </div>
         );
       })}
+      </div>
+      </>
+      )}
     </div>
   );
 }
@@ -162,18 +202,18 @@ function AddBorrower({ onAdd }) {
   };
 
   return (
-    <div style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 12, padding: 16 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: "#f0b429", marginBottom: 14 }}>➕ New Borrower</div>
+    <div style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 12, padding: 14 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: "#f0b429", marginBottom: 10 }}>➕ New Borrower</div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
         {[["arawan", "☀️ Arawan"], ["paluwagan", "🤝 Paluwagan"]].map(([val, label]) => (
-          <button key={val} onClick={() => set("loanType", val)} style={{ ...btnStyle, flex: 1, background: form.loanType === val ? "#f0b429" : "#0d1117", color: form.loanType === val ? "#0d1117" : "#8b949e", border: form.loanType === val ? "none" : "1px solid #30363d" }}>
+          <button key={val} onClick={() => set("loanType", val)} style={{ ...btnStyle, flex: 1, background: form.loanType === val ? "#f0b429" : "#0d1117", color: form.loanType === val ? "#0d1117" : "#8b949e", border: form.loanType === val ? "none" : "1px solid #30363d", padding: "7px 14px" }}>
             {label}
           </button>
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         <div style={{ gridColumn: "1/-1" }}>
           <label style={labelStyle}>Name</label>
           <input style={inputStyle} placeholder="Juan dela Cruz" value={form.name} onChange={(e) => set("name", e.target.value)} />
@@ -236,21 +276,21 @@ function AddBorrower({ onAdd }) {
         </div>
       </div>
 
-      <div style={{ background: "#0d1117", border: "1px solid #30363d", borderRadius: 8, padding: 12, marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+      <div style={{ background: "#0d1117", border: "1px solid #30363d", borderRadius: 8, padding: 10, marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
         {(isPaluwagan
-          ? [["Total", fmt(paluwagan.total)], ["Interest", fmt(paluwagan.total - (parseFloat(form.principal) || 0))], ["Monthly", paluwagan.monthly > 0 ? fmt(paluwagan.monthly) : "—"]]
+          ? [["Total", fmt(paluwagan.total)], ["Interest/Month", paluwagan.monthly > 0 ? fmt(paluwagan.monthly) : "—"], ["Final Month (+principal)", fmt(paluwagan.monthly + (parseFloat(form.principal) || 0))]]
           : [["Total", fmt(arawan.total)], ["Interest", fmt(arawan.total - (parseFloat(form.principal) || 0))], ["Daily", arawan.daily > 0 ? fmt(arawan.daily) : "—"]]
         ).map(([l, v]) => (
           <div key={l} style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#f0b429" }}>{v}</div>
-            <div style={{ fontSize: 10, color: "#8b949e", marginTop: 2 }}>{l}</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: "#f0b429" }}>{v}</div>
+            <div style={{ fontSize: 12, color: "#8b949e", marginTop: 2 }}>{l}</div>
           </div>
         ))}
       </div>
 
-      {err && <div style={{ color: "#f85149", fontSize: 12, marginTop: 8 }}>⚠️ {err}</div>}
+      {err && <div style={{ color: "#f85149", fontSize: 14, marginTop: 8 }}>⚠️ {err}</div>}
 
-      <button onClick={submit} style={{ ...btnStyle, background: "#f0b429", color: "#0d1117", width: "100%", marginTop: 14, padding: "11px" }}>
+      <button onClick={submit} style={{ ...btnStyle, background: "#f0b429", color: "#0d1117", width: "100%", marginTop: 10, padding: "9px" }}>
         💾 Save Borrower
       </button>
     </div>
@@ -265,8 +305,8 @@ function Collect({ borrowers, onRecord }) {
   if (!active.length)
     return (
       <div style={{ textAlign: "center", padding: "48px 20px", color: "#8b949e" }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
-        <p style={{ fontSize: 14 }}>All done!</p>
+        <div style={{ fontSize: 50, marginBottom: 12 }}>✅</div>
+        <p style={{ fontSize: 16 }}>All done!</p>
       </div>
     );
 
@@ -274,12 +314,13 @@ function Collect({ borrowers, onRecord }) {
 
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>
         Record Payment — {new Date().toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })}
       </div>
+      <div className="cards-grid">
       {active.map((b) => {
         const c = calcBorrower(b);
-        const perPayment = b.loan_type === "paluwagan" ? b.monthly_payment : b.daily_payment;
+        const perPayment = b.loan_type === "paluwagan" ? c.duePayment : b.daily_payment;
         const todayPaid = b.payments.filter((p) => p.date === todayStr).reduce((s, p) => s + p.amount, 0);
         const hasPaidToday = todayPaid >= perPayment - 0.5;
         const amt = amounts[b.id] ?? perPayment.toFixed(2);
@@ -287,25 +328,27 @@ function Collect({ borrowers, onRecord }) {
           <div key={b.id} style={cardStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 700 }}>{b.name}</div>
-                <div style={{ fontSize: 11, color: "#8b949e" }}>
-                  {b.loan_type === "paluwagan" ? "Monthly" : "Daily"}: {fmt(perPayment)}
+                <div style={{ fontSize: 17, fontWeight: 700 }}>{b.name}</div>
+                <div style={{ fontSize: 13, color: "#8b949e" }}>
+                  {b.loan_type === "paluwagan"
+                    ? (c.isFinalMonth ? `Final Payment (interest + principal): ${fmt(perPayment)}` : `Monthly Interest: ${fmt(perPayment)}`)
+                    : `Daily: ${fmt(perPayment)}`}
                 </div>
               </div>
               {hasPaidToday ? (
-                <span style={{ background: "#1a2a3a", color: "#79c0ff", border: "1px solid #1f6feb", borderRadius: 20, padding: "3px 9px", fontSize: 10, fontWeight: 700 }}>✔ PAID</span>
+                <span style={{ background: "#1a2a3a", color: "#79c0ff", border: "1px solid #1f6feb", borderRadius: 20, padding: "3px 9px", fontSize: 12, fontWeight: 700 }}>✔ PAID</span>
               ) : c.isLate ? (
-                <span style={{ background: "#3a1a1a", color: "#f85149", border: "1px solid #da3633", borderRadius: 20, padding: "3px 9px", fontSize: 10, fontWeight: 700 }}>⚠️ LATE</span>
+                <span style={{ background: "#3a1a1a", color: "#f85149", border: "1px solid #da3633", borderRadius: 20, padding: "3px 9px", fontSize: 12, fontWeight: 700 }}>⚠️ LATE</span>
               ) : (
-                <span style={{ background: "#1a3a1e", color: "#3fb950", border: "1px solid #238636", borderRadius: 20, padding: "3px 9px", fontSize: 10, fontWeight: 700 }}>🟢 PENDING</span>
+                <span style={{ background: "#1a3a1e", color: "#3fb950", border: "1px solid #238636", borderRadius: 20, padding: "3px 9px", fontSize: 12, fontWeight: 700 }}>🟢 PENDING</span>
               )}
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 4 }}>
               <span style={{ color: "#8b949e" }}>Remaining to Collect</span>
               <span style={{ fontWeight: 600, color: "#f0b429" }}>{fmt(c.remaining)}</span>
             </div>
             {c.deficit > 0.5 && (
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 4 }}>
                 <span style={{ color: "#8b949e" }}>Still Short</span>
                 <span style={{ fontWeight: 600, color: "#f85149" }}>-{fmt(c.deficit)}</span>
               </div>
@@ -315,13 +358,14 @@ function Collect({ borrowers, onRecord }) {
                 <label style={labelStyle}>Amount</label>
                 <input style={inputStyle} type="number" value={amt} onChange={(e) => setAmounts((a) => ({ ...a, [b.id]: e.target.value }))} />
               </div>
-              <button onClick={() => { onRecord(b.id, parseFloat(amt)); setAmounts((a) => ({ ...a, [b.id]: perPayment.toFixed(2) })); }} style={{ ...btnStyle, background: "#f0b429", color: "#0d1117", height: 38, fontSize: 12, whiteSpace: "nowrap" }}>
+              <button onClick={() => { onRecord(b.id, parseFloat(amt)); setAmounts((a) => ({ ...a, [b.id]: perPayment.toFixed(2) })); }} style={{ ...btnStyle, background: "#f0b429", color: "#0d1117", height: 38, fontSize: 14, whiteSpace: "nowrap" }}>
                 💵 Record
               </button>
             </div>
           </div>
         );
       })}
+      </div>
     </div>
   );
 }
@@ -330,53 +374,147 @@ function Collect({ borrowers, onRecord }) {
 function MonitorUsers({ borrowers }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [menuOpenId, setMenuOpenId] = useState(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
 
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending: true });
-      setUsers(data || []);
-      setLoading(false);
-    })();
-  }, []);
+  const openMenu = (e, id) => {
+    if (menuOpenId === id) { setMenuOpenId(null); return; }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuPos({ top: rect.bottom + 4, left: rect.right - 140 });
+    setMenuOpenId(id);
+  };
+
+  const loadUsers = async () => {
+    const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending: true });
+    setUsers(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { loadUsers(); }, []);
+
+  const deleteUser = async () => {
+    const { error } = await supabase.from("profiles").delete().eq("id", deleteTarget.id);
+    setDeleteTarget(null);
+    if (!error) loadUsers();
+  };
 
   if (loading) return <div style={{ textAlign: "center", padding: 40, color: "#8b949e" }}>Loading...</div>;
 
   if (!users.length)
     return (
       <div style={{ textAlign: "center", padding: "48px 20px", color: "#8b949e" }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>👥</div>
-        <p style={{ fontSize: 14 }}>No registered users yet.</p>
+        <div style={{ fontSize: 50, marginBottom: 12 }}>👥</div>
+        <p style={{ fontSize: 16 }}>No registered users yet.</p>
       </div>
     );
 
+  const th = { textAlign: "left", padding: "8px 10px", fontSize: 11, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, borderBottom: "1px solid #30363d", whiteSpace: "nowrap" };
+  const td = { padding: "10px", fontSize: 14, borderBottom: "1px solid #21262d", whiteSpace: "nowrap" };
+
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
         Registered Users
       </div>
-      {users.map((u) => {
-        const linked = borrowers.find((b) => b.user_id === u.id);
-        return (
-          <div key={u.id} style={{ ...cardStyle, display: "flex", alignItems: "center", gap: 12 }}>
-            <Avatar name={u.full_name || u.email} avatarUrl={u.avatar_url} size={40} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 14, fontWeight: 700 }}>{u.full_name || "Unnamed"}</span>
-                <span style={{ background: u.role === "admin" ? "#2a1a3a" : "#1a2a3a", color: u.role === "admin" ? "#c297ff" : "#79c0ff", border: `1px solid ${u.role === "admin" ? "#6f42c1" : "#1f6feb"}`, borderRadius: 6, padding: "1px 6px", fontSize: 9, fontWeight: 700 }}>
-                  {u.role.toUpperCase()}
-                </span>
-              </div>
-              <div style={{ fontSize: 12, color: "#8b949e", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.email}</div>
-              <div style={{ fontSize: 11, color: linked ? "#3fb950" : "#8b949e", marginTop: 2 }}>
-                {linked ? `🔗 Linked to ${linked.name} (${linked.loan_type})` : "Not linked to any loan"}
-              </div>
-            </div>
-            <div style={{ fontSize: 10, color: "#8b949e", whiteSpace: "nowrap" }}>
-              {new Date(u.created_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
-            </div>
-          </div>
-        );
-      })}
+      <div style={{ overflowX: "auto", border: "1px solid #30363d", borderRadius: 10 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={th}></th>
+              <th style={th}>First Name</th>
+              <th style={th}>Last Name</th>
+              <th style={th}>Email</th>
+              <th style={th}>Role</th>
+              <th style={th}>Linked Loan</th>
+              <th style={th}>Joined</th>
+              <th style={th}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => {
+              const linked = borrowers.find((b) => b.user_id === u.id);
+              return (
+                <tr key={u.id}>
+                  <td style={{ ...td, width: 40 }}><Avatar name={u.full_name || u.email} avatarUrl={u.avatar_url} size={32} /></td>
+                  <td style={{ ...td, fontWeight: 600 }}>{u.first_name || "—"}</td>
+                  <td style={{ ...td, fontWeight: 600 }}>{u.last_name || "—"}</td>
+                  <td style={{ ...td, color: "#8b949e" }}>{u.email}</td>
+                  <td style={td}>
+                    <span style={{ background: u.role === "admin" ? "#2a1a3a" : "#1a2a3a", color: u.role === "admin" ? "#c297ff" : "#79c0ff", border: `1px solid ${u.role === "admin" ? "#6f42c1" : "#1f6feb"}`, borderRadius: 6, padding: "1px 6px", fontSize: 11, fontWeight: 700 }}>
+                      {u.role.toUpperCase()}
+                    </span>
+                  </td>
+                  <td style={{ ...td, color: linked ? "#3fb950" : "#8b949e" }}>
+                    {linked ? `🔗 ${linked.name} (${linked.loan_type})` : "Not linked"}
+                  </td>
+                  <td style={{ ...td, color: "#8b949e" }}>
+                    {new Date(u.created_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
+                  </td>
+                  <td style={{ ...td, textAlign: "center" }}>
+                    <button
+                      onClick={(e) => openMenu(e, u.id)}
+                      style={{ background: "transparent", border: "1px solid #30363d", color: "#8b949e", borderRadius: 6, width: 30, height: 30, fontSize: 16, cursor: "pointer" }}
+                    >
+                      ⋮
+                    </button>
+                    {menuOpenId === u.id && (
+                      <>
+                        <div onClick={() => setMenuOpenId(null)} style={{ position: "fixed", inset: 0, zIndex: 60 }} />
+                        <div
+                          style={{
+                            position: "fixed",
+                            top: menuPos.top,
+                            left: menuPos.left,
+                            minWidth: 140,
+                            background: "#21262d",
+                            border: "1px solid #30363d",
+                            borderRadius: 10,
+                            padding: 6,
+                            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                            zIndex: 61,
+                          }}
+                        >
+                          <button
+                            onClick={() => { setMenuOpenId(null); setSelected(u); }}
+                            style={{ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", color: "#e6edf3", padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 13 }}
+                          >
+                            ✏️ Edit
+                          </button>
+                          <button
+                            onClick={() => { setMenuOpenId(null); setDeleteTarget(u); }}
+                            style={{ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", color: "#f85149", padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 13 }}
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {selected && (
+        <UserDetailModal
+          user={selected}
+          linkedBorrower={borrowers.find((b) => b.user_id === selected.id)}
+          onClose={() => setSelected(null)}
+          onSaved={() => { setSelected(null); loadUsers(); }}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteModal
+          name={deleteTarget.first_name || deleteTarget.email}
+          onConfirm={deleteUser}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
     </div>
   );
 }
@@ -385,11 +523,12 @@ function MonitorUsers({ borrowers }) {
 export default function AdminApp() {
   const { profile, signOut, refreshProfile } = useAuth();
   const [tab, setTab] = useState("dashboard");
-  const [loanFilter, setLoanFilter] = useState("all");
   const [borrowers, setBorrowers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState({ type: null, id: null });
   const [editingProfile, setEditingProfile] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [toast, setToast] = useState({ msg: "", color: "" });
 
   const showToast = (msg, color = "#238636") => {
@@ -446,8 +585,6 @@ export default function AdminApp() {
 
   const modalBorrower = borrowers.find((b) => b.id === modal.id);
 
-  const filteredBorrowers = loanFilter === "all" ? borrowers : borrowers.filter((b) => b.loan_type === loanFilter);
-
   const tabTitles = {
     dashboard: "📊 Dashboard",
     add: "➕ Add Borrower",
@@ -458,25 +595,34 @@ export default function AdminApp() {
   if (loading) return <div style={{ minHeight: "100vh", background: "#0d1117", color: "#8b949e", display: "flex", alignItems: "center", justifyContent: "center" }}>Loading...</div>;
 
   return (
-    <div style={{ fontFamily: "'Segoe UI', sans-serif", background: "#0d1117", color: "#e6edf3", minHeight: "100vh", display: "flex" }}>
+    <div className="admin-shell" style={{ fontFamily: "'Segoe UI', sans-serif", background: "#0d1117", color: "#e6edf3" }}>
       <style>{`@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } } input[type=date]::-webkit-calendar-picker-indicator { filter: invert(1); }`}</style>
+
+      <div className="admin-mobile-topbar">
+        <button onClick={() => setSidebarOpen(true)} style={{ background: "transparent", border: "1px solid #30363d", color: "#e6edf3", borderRadius: 8, padding: "8px 12px", fontSize: 16, cursor: "pointer" }}>☰</button>
+        <span style={{ fontSize: 16, fontWeight: 700, color: "#f0b429" }}>💰 MONEY LENDING</span>
+      </div>
+
+      <div className={`admin-sidebar-overlay${sidebarOpen ? " open" : ""}`} onClick={() => setSidebarOpen(false)} />
 
       <Sidebar
         tab={tab}
         setTab={setTab}
-        loanFilter={loanFilter}
-        setLoanFilter={setLoanFilter}
         profile={profile}
         onEditProfile={() => setEditingProfile(true)}
         onLogout={signOut}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        collapsed={collapsed}
+        onToggleCollapse={() => setCollapsed((v) => !v)}
       />
 
-      <div style={{ flex: 1, minWidth: 0, padding: 24, maxWidth: 900 }}>
-        <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 18 }}>{tabTitles[tab]}</div>
+      <div className="admin-content">
+        <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>{tabTitles[tab]}</div>
 
-        {tab === "dashboard" && <Dashboard borrowers={filteredBorrowers} onDelete={(id) => setModal({ type: "delete", id })} onViewPayments={(id) => setModal({ type: "payments", id })} />}
+        {tab === "dashboard" && <Dashboard borrowers={borrowers} onDelete={(id) => setModal({ type: "delete", id })} onViewPayments={(id) => setModal({ type: "payments", id })} />}
         {tab === "add" && <AddBorrower onAdd={addBorrower} />}
-        {tab === "collect" && <Collect borrowers={filteredBorrowers} onRecord={recordPayment} />}
+        {tab === "collect" && <Collect borrowers={borrowers} onRecord={recordPayment} />}
         {tab === "users" && <MonitorUsers borrowers={borrowers} />}
       </div>
 

@@ -5,29 +5,29 @@ export const btnStyle = {
   cursor: "pointer",
   transition: "all 0.2s",
   padding: "9px 16px",
-  fontSize: 13,
+  fontSize: 15,
 };
 
 export const inputStyle = {
   background: "#0d1117",
   border: "1px solid #30363d",
   borderRadius: 8,
-  padding: "9px 12px",
+  padding: "7px 12px",
   color: "#e6edf3",
-  fontSize: 13,
+  fontSize: 15,
   outline: "none",
   width: "100%",
   boxSizing: "border-box",
 };
 
 export const labelStyle = {
-  fontSize: 11,
+  fontSize: 13,
   color: "#8b949e",
   fontWeight: 600,
   textTransform: "uppercase",
   letterSpacing: 0.5,
   display: "block",
-  marginBottom: 4,
+  marginBottom: 3,
 };
 
 export const cardStyle = {

@@ -13,7 +13,7 @@ export default function Toast({ msg, color }) {
         color: "#fff",
         padding: "10px 16px",
         borderRadius: 8,
-        fontSize: 13,
+        fontSize: 15,
         fontWeight: 600,
         zIndex: 200,
         animation: "slideUp 0.3s ease",

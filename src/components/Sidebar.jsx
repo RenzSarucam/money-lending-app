@@ -8,14 +8,13 @@ const navItems = [
   { key: "users", label: "Monitor Users", icon: "👥" },
 ];
 
-const loanFilters = [
-  { key: "all", label: "All Loans", icon: "📁" },
-  { key: "arawan", label: "Arawan", icon: "☀️" },
-  { key: "paluwagan", label: "Paluwagan", icon: "🤝" },
-];
-
-export default function Sidebar({ tab, setTab, loanFilter, setLoanFilter, profile, onEditProfile, onLogout }) {
+export default function Sidebar({ tab, setTab, profile, onEditProfile, onLogout, open, onClose, collapsed, onToggleCollapse }) {
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const go = (fn, val) => {
+    fn(val);
+    onClose?.();
+  };
 
   const navBtn = (active) => ({
     display: "flex",
@@ -27,49 +26,38 @@ export default function Sidebar({ tab, setTab, loanFilter, setLoanFilter, profil
     color: active ? "#0d1117" : "#8b949e",
     border: "none",
     borderRadius: 8,
-    padding: "9px 12px",
-    fontSize: 13,
+    padding: collapsed ? "9px" : "9px 12px",
+    justifyContent: collapsed ? "center" : "flex-start",
+    fontSize: 15,
     fontWeight: 600,
     cursor: "pointer",
     marginBottom: 4,
   });
 
   return (
-    <div
-      style={{
-        width: 230,
-        flexShrink: 0,
-        background: "#161b22",
-        borderRight: "1px solid #30363d",
-        height: "100vh",
-        position: "sticky",
-        top: 0,
-        display: "flex",
-        flexDirection: "column",
-        padding: 16,
-        boxSizing: "border-box",
-      }}
-    >
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 700, color: "#f0b429", margin: 0 }}>💰 MONEY LENDING</h1>
-        <p style={{ fontSize: 11, color: "#8b949e", marginTop: 4 }}>Admin Panel</p>
-      </div>
-
-      <div style={{ fontSize: 10, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-        Loan Type
-      </div>
-      {loanFilters.map((f) => (
-        <button key={f.key} onClick={() => setLoanFilter(f.key)} style={navBtn(loanFilter === f.key)}>
-          <span>{f.icon}</span> {f.label}
+    <div className={`admin-sidebar${open ? " open" : ""}${collapsed ? " collapsed" : ""}`}>
+      <div style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6 }}>
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: "#f0b429", margin: 0, whiteSpace: "nowrap", overflow: "hidden" }}>{collapsed ? "💰" : "💰 MONEY LENDING"}</h1>
+          {!collapsed && <p style={{ fontSize: 13, color: "#8b949e", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{profile?.full_name || "Admin"}</p>}
+        </div>
+        <button
+          onClick={onToggleCollapse}
+          className="admin-sidebar-collapse-btn"
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? "›" : "‹"}
         </button>
-      ))}
-
-      <div style={{ fontSize: 10, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, margin: "16px 0 8px" }}>
-        Menu
       </div>
+
+      {!collapsed && (
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+          Menu
+        </div>
+      )}
       {navItems.map((n) => (
-        <button key={n.key} onClick={() => setTab(n.key)} style={navBtn(tab === n.key)}>
-          <span>{n.icon}</span> {n.label}
+        <button key={n.key} onClick={() => go(setTab, n.key)} style={navBtn(tab === n.key)} title={n.label}>
+          <span>{n.icon}</span> {!collapsed && n.label}
         </button>
       ))}
 
@@ -82,7 +70,7 @@ export default function Sidebar({ tab, setTab, loanFilter, setLoanFilter, profil
               position: "absolute",
               bottom: "calc(100% + 8px)",
               left: 0,
-              right: 0,
+              minWidth: 180,
               background: "#21262d",
               border: "1px solid #30363d",
               borderRadius: 10,
@@ -91,14 +79,14 @@ export default function Sidebar({ tab, setTab, loanFilter, setLoanFilter, profil
             }}
           >
             <button
-              onClick={() => { setMenuOpen(false); onEditProfile(); }}
-              style={{ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", color: "#e6edf3", padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 13 }}
+              onClick={() => { setMenuOpen(false); onEditProfile(); onClose?.(); }}
+              style={{ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", color: "#e6edf3", padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 15 }}
             >
               ✏️ Edit Profile
             </button>
             <button
               onClick={() => { setMenuOpen(false); onLogout(); }}
-              style={{ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", color: "#f85149", padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 13 }}
+              style={{ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", color: "#f85149", padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 15 }}
             >
               🚪 Logout
             </button>
@@ -106,9 +94,11 @@ export default function Sidebar({ tab, setTab, loanFilter, setLoanFilter, profil
         )}
         <button
           onClick={() => setMenuOpen((v) => !v)}
+          title={profile?.full_name || "Admin"}
           style={{
             display: "flex",
             alignItems: "center",
+            justifyContent: collapsed ? "center" : "flex-start",
             gap: 10,
             width: "100%",
             background: "#0d1117",
@@ -119,12 +109,14 @@ export default function Sidebar({ tab, setTab, loanFilter, setLoanFilter, profil
           }}
         >
           <Avatar name={profile?.full_name || profile?.email} avatarUrl={profile?.avatar_url} size={32} />
-          <div style={{ textAlign: "left", overflow: "hidden" }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "#e6edf3", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {profile?.full_name || "Admin"}
+          {!collapsed && (
+            <div style={{ textAlign: "left", overflow: "hidden" }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#e6edf3", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {profile?.full_name || "Admin"}
+              </div>
+              <div style={{ fontSize: 12, color: "#8b949e" }}>{profile?.role}</div>
             </div>
-            <div style={{ fontSize: 10, color: "#8b949e" }}>{profile?.role}</div>
-          </div>
+          )}
         </button>
       </div>
     </div>

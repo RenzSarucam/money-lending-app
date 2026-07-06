@@ -4,7 +4,8 @@ import { supabase } from "../lib/supabaseClient";
 import { btnStyle, inputStyle, labelStyle } from "../utils/theme";
 
 export default function Signup() {
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
@@ -16,10 +17,11 @@ export default function Signup() {
     e.preventDefault();
     setErr("");
     setBusy(true);
+    const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: { data: { first_name: firstName.trim(), last_name: lastName.trim(), full_name: fullName } },
     });
     setBusy(false);
     if (error) {
@@ -49,8 +51,16 @@ export default function Signup() {
           <p style={{ fontSize: 12, color: "#8b949e", marginTop: 4 }}>Create a new account</p>
         </div>
 
-        <label style={labelStyle}>Full Name</label>
-        <input style={{ ...inputStyle, marginBottom: 12 }} required value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Juan dela Cruz" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div>
+            <label style={labelStyle}>First Name</label>
+            <input style={inputStyle} required value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Juan" />
+          </div>
+          <div>
+            <label style={labelStyle}>Last Name</label>
+            <input style={inputStyle} required value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="dela Cruz" />
+          </div>
+        </div>
 
         <label style={labelStyle}>Email</label>
         <input style={{ ...inputStyle, marginBottom: 12 }} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />

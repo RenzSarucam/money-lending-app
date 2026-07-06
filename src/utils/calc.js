@@ -34,7 +34,7 @@ function elapsedMonths(startDate, termMonths) {
   let months =
     (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
   if (now.getDate() < start.getDate()) months -= 1;
-  return Math.min(Math.max(0, months + 1), termMonths);
+  return Math.min(Math.max(0, months), termMonths);
 }
 
 export function calcBorrower(b) {
@@ -43,10 +43,12 @@ export function calcBorrower(b) {
 
   if (b.loan_type === "paluwagan") {
     const elapsed = elapsedMonths(b.start_date, b.term_months);
-    const expectedPaid = elapsed * b.monthly_payment;
+    const isFinalMonth = elapsed >= b.term_months - 1;
+    const duePayment = isFinalMonth ? b.monthly_payment + b.principal : b.monthly_payment;
+    const expectedPaid = elapsed >= b.term_months ? b.total_amount : elapsed * b.monthly_payment;
     const deficit = Math.max(0, expectedPaid - paid);
     const isLate = deficit > 0.5;
-    return { ...base, elapsed, expectedPaid, deficit, isLate, unit: "buwan" };
+    return { ...base, elapsed, expectedPaid, deficit, isLate, unit: "buwan", isFinalMonth, duePayment };
   }
 
   const elapsed = elapsedCollectionDays(b.start_date, b.collection_days, b.term_days);
@@ -63,7 +65,26 @@ export function computeArawanTotals(principal, interestPct, termDays) {
 }
 
 export function computePaluwaganTotals(principal, monthlyInterestPct, termMonths) {
-  const total = principal + principal * (monthlyInterestPct / 100) * termMonths;
-  const monthly = termMonths > 0 ? total / termMonths : 0;
+  const monthly = principal * (monthlyInterestPct / 100);
+  const total = principal + monthly * termMonths;
   return { total, monthly: parseFloat(monthly.toFixed(2)) };
+}
+
+export function getEndDate(b) {
+  if (b.loan_type === "paluwagan") {
+    const d = new Date(b.start_date);
+    d.setMonth(d.getMonth() + b.term_months);
+    return d;
+  }
+  const d = new Date(b.start_date);
+  let count = 0;
+  while (count < b.term_days) {
+    const dow = d.getDay();
+    if (b.collection_days === "daily" || (b.collection_days === "monsat" && dow !== 0)) {
+      count++;
+      if (count === b.term_days) break;
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return d;
 }

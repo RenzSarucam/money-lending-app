@@ -124,3 +124,41 @@ $$ language plpgsql security definer;
 
 create policy "profiles_update_own" on public.profiles
   for update using (id = auth.uid()) with check (id = auth.uid() and role = (select role from public.profiles where id = auth.uid()));
+
+-- 8. Admin can edit any user's profile (name/role) from the Monitor Users screen
+create policy "profiles_update_admin" on public.profiles
+  for update using (public.is_admin());
+
+-- 9. Split full_name into first_name / last_name for the Monitor Users table
+alter table public.profiles add column if not exists first_name text;
+alter table public.profiles add column if not exists last_name text;
+
+update public.profiles
+set first_name = coalesce(first_name, split_part(full_name, ' ', 1)),
+    last_name = coalesce(last_name, nullif(trim(substring(full_name from position(' ' in full_name))), ''))
+where first_name is null;
+
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profiles (id, role, full_name, email, first_name, last_name)
+  values (
+    new.id, 'user',
+    coalesce(new.raw_user_meta_data->>'full_name', new.email),
+    new.email,
+    new.raw_user_meta_data->>'first_name',
+    new.raw_user_meta_data->>'last_name'
+  );
+
+  update public.borrowers
+  set user_id = new.id
+  where lower(email) = lower(new.email) and user_id is null;
+
+  return new;
+end;
+$$ language plpgsql security definer;
+
+-- 10. Admin can delete a user's profile row from the Monitor Users screen
+-- (this only removes their app profile/access record, not their Supabase Auth login)
+create policy "profiles_delete_admin" on public.profiles
+  for delete using (public.is_admin());
