@@ -5,6 +5,7 @@ const navItems = [
   { key: "dashboard", label: "Dashboard", icon: "📊" },
   { key: "add", label: "Add Borrower", icon: "➕" },
   { key: "collect", label: "Collect", icon: "💵" },
+  { key: "reports", label: "Reports", icon: "📈" },
   { key: "users", label: "Monitor Users", icon: "👥" },
 ];
 

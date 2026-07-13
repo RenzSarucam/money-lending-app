@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../context/AuthContext";
 import { calcBorrower, fmt, today, computeArawanTotals, computePaluwaganTotals, getEndDate } from "../utils/calc";
+import { downloadCsv } from "../utils/csv";
 import { btnStyle, inputStyle, labelStyle, cardStyle } from "../utils/theme";
 import Toast from "../components/Toast";
 import DeleteModal from "../components/DeleteModal";
@@ -10,12 +11,14 @@ import Sidebar from "../components/Sidebar";
 import EditProfileModal from "../components/EditProfileModal";
 import UserDetailModal from "../components/UserDetailModal";
 import AddUserModal from "../components/AddUserModal";
+import EditBorrowerModal from "../components/EditBorrowerModal";
 import Avatar from "../components/Avatar";
 import "../styles/responsive.css";
 
 // ── Dashboard tab ────────────────────────────────────────────────────────────
-function Dashboard({ borrowers: allBorrowers, onDelete, onViewPayments }) {
+function Dashboard({ borrowers: allBorrowers, onDelete, onViewPayments, onEdit }) {
   const [loanFilter, setLoanFilter] = useState("all");
+  const [search, setSearch] = useState("");
   const borrowers = loanFilter === "all" ? allBorrowers : allBorrowers.filter((b) => b.loan_type === loanFilter);
 
   const filterTabs = [
@@ -62,6 +65,8 @@ function Dashboard({ borrowers: allBorrowers, onDelete, onViewPayments }) {
     return 0;
   });
 
+  const searched = sorted.filter((b) => b.name.toLowerCase().includes(search.trim().toLowerCase()));
+
   return (
     <div>
       {filterBar}
@@ -86,12 +91,24 @@ function Dashboard({ borrowers: allBorrowers, onDelete, onViewPayments }) {
         ))}
       </div>
 
+      <input
+        style={{ ...inputStyle, marginBottom: 14, maxWidth: 320 }}
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="🔍 Search borrower..."
+      />
+
       <div style={{ fontSize: 13, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
         All Borrowers
       </div>
 
+      {!searched.length ? (
+        <div style={{ textAlign: "center", padding: "32px 20px", color: "#8b949e" }}>
+          <p style={{ fontSize: 15 }}>No borrower matches "{search}".</p>
+        </div>
+      ) : (
       <div className="cards-grid">
-      {sorted.map((b) => {
+      {searched.map((b) => {
         const c = calcBorrower(b);
         const status = c.isDone ? "done" : c.isLate ? "late" : "active";
         const badgeMap = {
@@ -144,12 +161,14 @@ function Dashboard({ borrowers: allBorrowers, onDelete, onViewPayments }) {
 
             <div style={{ display: "flex", gap: 6, marginTop: "auto", paddingTop: 10 }}>
               <button onClick={() => onViewPayments(b.id)} style={{ ...btnStyle, background: "transparent", border: "1px solid #30363d", color: "#8b949e", fontSize: 13, padding: "6px 12px" }}>📋 Payments</button>
+              <button onClick={() => onEdit(b.id)} style={{ ...btnStyle, background: "transparent", border: "1px solid #30363d", color: "#8b949e", fontSize: 13, padding: "6px 12px" }}>✏️ Edit</button>
               <button onClick={() => onDelete(b.id)} style={{ ...btnStyle, background: "#da3633", color: "#fff", fontSize: 13, padding: "6px 12px" }}>🗑️ Delete</button>
             </div>
           </div>
         );
       })}
       </div>
+      )}
       </>
       )}
     </div>
@@ -385,6 +404,124 @@ function Collect({ borrowers, onRecord }) {
   );
 }
 
+// ── Reports tab ──────────────────────────────────────────────────────────────
+function Reports({ borrowers, staffNames }) {
+  const exportBorrowersCsv = () => {
+    const rows = [
+      ["Name", "Loan Type", "Email", "Principal", "Interest", "Total Payable", "Collected", "Remaining", "Status", "Start Date", "End Date"],
+      ...borrowers.map((b) => {
+        const c = calcBorrower(b);
+        const status = c.isDone ? "Done" : c.isLate ? "Late" : "Active";
+        return [b.name, b.loan_type, b.email || "", b.principal, b.interest, b.total_amount, c.paid.toFixed(2), c.remaining.toFixed(2), status, b.start_date, getEndDate(b).toISOString().split("T")[0]];
+      }),
+    ];
+    downloadCsv(`borrowers-${today()}.csv`, rows);
+  };
+
+  const exportPaymentsCsv = () => {
+    const rows = [["Borrower", "Loan Type", "Date", "Amount", "Recorded By"]];
+    borrowers.forEach((b) => {
+      [...b.payments].sort((a, z) => new Date(a.date) - new Date(z.date)).forEach((p) => {
+        rows.push([b.name, b.loan_type, p.date, p.amount, staffNames?.[p.recorded_by] || ""]);
+      });
+    });
+    downloadCsv(`payments-${today()}.csv`, rows);
+  };
+
+  if (!borrowers.length)
+    return (
+      <div style={{ textAlign: "center", padding: "48px 20px", color: "#8b949e" }}>
+        <div style={{ fontSize: 50, marginBottom: 12 }}>📈</div>
+        <p style={{ fontSize: 16 }}>No data yet. Add a borrower first.</p>
+      </div>
+    );
+
+  const totalPrincipal = borrowers.reduce((s, b) => s + b.principal, 0);
+  const totalInterest = borrowers.reduce((s, b) => s + (b.total_amount - b.principal), 0);
+  const totalCollected = borrowers.reduce((s, b) => s + b.payments.reduce((ps, p) => ps + p.amount, 0), 0);
+  const totalOutstanding = borrowers.reduce((s, b) => s + calcBorrower(b).remaining, 0);
+
+  const monthKey = (dateStr) => dateStr.slice(0, 7);
+  const monthTotals = {};
+  borrowers.forEach((b) => b.payments.forEach((p) => {
+    const k = monthKey(p.date);
+    monthTotals[k] = (monthTotals[k] || 0) + p.amount;
+  }));
+  const months = Object.keys(monthTotals).sort().reverse().slice(0, 6);
+  const maxMonth = Math.max(1, ...months.map((m) => monthTotals[m]));
+
+  const lateBorrowers = borrowers
+    .map((b) => ({ b, c: calcBorrower(b) }))
+    .filter(({ c }) => c.isLate && !c.isDone)
+    .sort((x, y) => y.c.deficit - x.c.deficit);
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <button onClick={exportBorrowersCsv} style={{ ...btnStyle, background: "transparent", border: "1px solid #30363d", color: "#8b949e", fontSize: 13 }}>⬇️ Export Borrowers CSV</button>
+        <button onClick={exportPaymentsCsv} style={{ ...btnStyle, background: "transparent", border: "1px solid #30363d", color: "#8b949e", fontSize: 13 }}>⬇️ Export Payments CSV</button>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 20 }} className="form-grid">
+        {[
+          { val: fmt(totalPrincipal), lbl: "Total Lent Out" },
+          { val: fmt(totalInterest), lbl: "Total Interest Earned", color: "#3fb950" },
+          { val: fmt(totalCollected), lbl: "Total Collected", color: "#79c0ff" },
+          { val: fmt(totalOutstanding), lbl: "Outstanding Balance", color: "#f0b429" },
+        ].map((s, i) => (
+          <div key={i} style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 10, padding: "14px 8px", textAlign: "center" }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: s.color || "#e6edf3" }}>{s.val}</div>
+            <div style={{ fontSize: 12, color: "#8b949e", marginTop: 3 }}>{s.lbl}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
+        Monthly Collections (last {months.length || 0})
+      </div>
+      {!months.length ? (
+        <p style={{ color: "#8b949e", fontSize: 14, marginBottom: 20 }}>No payments recorded yet.</p>
+      ) : (
+        <div style={{ ...cardStyle, marginBottom: 20 }}>
+          {months.map((m) => (
+            <div key={m} style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+                <span style={{ color: "#8b949e" }}>{new Date(m + "-02").toLocaleDateString("en-PH", { month: "long", year: "numeric" })}</span>
+                <span style={{ fontWeight: 600 }}>{fmt(monthTotals[m])}</span>
+              </div>
+              <div style={{ background: "#21262d", borderRadius: 20, height: 8, overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: 20, width: `${(monthTotals[m] / maxMonth) * 100}%`, background: "linear-gradient(90deg,#238636,#3fb950)" }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
+        Currently Late ({lateBorrowers.length})
+      </div>
+      {!lateBorrowers.length ? (
+        <p style={{ color: "#3fb950", fontSize: 14 }}>✔ No late borrowers right now.</p>
+      ) : (
+        <div className="cards-grid">
+          {lateBorrowers.map(({ b, c }) => (
+            <div key={b.id} style={cardStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <span style={{ fontSize: 15, fontWeight: 700 }}>{b.name}</span>
+                <span style={{ background: "#3a1a1a", color: "#f85149", border: "1px solid #da3633", borderRadius: 6, padding: "1px 6px", fontSize: 11, fontWeight: 700 }}>{b.loan_type.toUpperCase()}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <span style={{ color: "#8b949e" }}>Short by</span>
+                <span style={{ fontWeight: 700, color: "#f85149" }}>{fmt(c.deficit)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Monitor Users tab ────────────────────────────────────────────────────────
 function MonitorUsers({ borrowers }) {
   const [users, setUsers] = useState([]);
@@ -549,6 +686,7 @@ function MonitorUsers({ borrowers }) {
       {deleteTarget && (
         <DeleteModal
           name={deleteTarget.first_name || deleteTarget.email}
+          impact="This removes their profile and app access. It does not delete their Supabase Auth login."
           onConfirm={deleteUser}
           onCancel={() => setDeleteTarget(null)}
         />
@@ -565,6 +703,7 @@ export default function AdminApp() {
   const [tab, setTab] = useState("dashboard");
   const [borrowers, setBorrowers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [staffNames, setStaffNames] = useState({});
   const [modal, setModal] = useState({ type: null, id: null });
   const [editingProfile, setEditingProfile] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -586,7 +725,14 @@ export default function AdminApp() {
     setLoading(false);
   };
 
-  useEffect(() => { loadBorrowers(); }, []);
+  const loadStaffNames = async () => {
+    const { data } = await supabase.from("profiles").select("id, first_name, last_name, email");
+    const map = {};
+    (data || []).forEach((p) => { map[p.id] = `${p.first_name || ""} ${p.last_name || ""}`.trim() || p.email; });
+    setStaffNames(map);
+  };
+
+  useEffect(() => { loadBorrowers(); loadStaffNames(); }, []);
 
   const addBorrower = async (b) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -629,6 +775,7 @@ export default function AdminApp() {
     dashboard: "📊 Dashboard",
     add: "➕ Add Borrower",
     collect: "💵 Collect",
+    reports: "📈 Reports",
     users: "👥 Monitor Users",
   };
 
@@ -660,14 +807,29 @@ export default function AdminApp() {
       <div className="admin-content">
         <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>{tabTitles[tab]}</div>
 
-        {tab === "dashboard" && <Dashboard borrowers={borrowers} onDelete={(id) => setModal({ type: "delete", id })} onViewPayments={(id) => setModal({ type: "payments", id })} />}
+        {tab === "dashboard" && <Dashboard borrowers={borrowers} onDelete={(id) => setModal({ type: "delete", id })} onViewPayments={(id) => setModal({ type: "payments", id })} onEdit={(id) => setModal({ type: "edit", id })} />}
         {tab === "add" && <AddBorrower onAdd={addBorrower} />}
         {tab === "collect" && <Collect borrowers={borrowers} onRecord={recordPayment} />}
+        {tab === "reports" && <Reports borrowers={borrowers} staffNames={staffNames} />}
         {tab === "users" && <MonitorUsers borrowers={borrowers} />}
       </div>
 
-      {modal.type === "payments" && <PaymentModal borrower={modalBorrower} canDelete onClose={() => setModal({ type: null, id: null })} onDeletePayment={deletePayment} />}
-      {modal.type === "delete" && <DeleteModal name={modalBorrower?.name} onConfirm={() => deleteBorrower(modal.id)} onCancel={() => setModal({ type: null, id: null })} />}
+      {modal.type === "payments" && <PaymentModal borrower={modalBorrower} canDelete staffNames={staffNames} onClose={() => setModal({ type: null, id: null })} onDeletePayment={deletePayment} />}
+      {modal.type === "delete" && (
+        <DeleteModal
+          name={modalBorrower?.name}
+          impact={modalBorrower ? `This permanently removes ${modalBorrower.payments.length} payment record(s) totaling ${fmt(modalBorrower.payments.reduce((s, p) => s + p.amount, 0))}. This cannot be undone!` : undefined}
+          onConfirm={() => deleteBorrower(modal.id)}
+          onCancel={() => setModal({ type: null, id: null })}
+        />
+      )}
+      {modal.type === "edit" && modalBorrower && (
+        <EditBorrowerModal
+          borrower={modalBorrower}
+          onClose={() => setModal({ type: null, id: null })}
+          onSaved={() => { setModal({ type: null, id: null }); showToast(`✅ ${modalBorrower.name} updated!`); loadBorrowers(); }}
+        />
+      )}
       {editingProfile && (
         <EditProfileModal
           profile={profile}

@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { calcBorrower, fmt } from "../utils/calc";
 import { btnStyle } from "../utils/theme";
 
-export default function PaymentModal({ borrower, onClose, onDeletePayment, canDelete }) {
+export default function PaymentModal({ borrower, onClose, onDeletePayment, canDelete, staffNames = {} }) {
+  const [confirmingId, setConfirmingId] = useState(null);
   if (!borrower) return null;
   const c = calcBorrower(borrower);
   const sorted = [...borrower.payments].sort((a, z) => new Date(z.date) - new Date(a.date));
@@ -24,11 +26,33 @@ export default function PaymentModal({ borrower, onClose, onDeletePayment, canDe
           ) : (
             sorted.map((p) => (
               <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid #21262d" }}>
-                <span style={{ fontSize: 14, color: "#8b949e" }}>{new Date(p.date).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}</span>
+                <div>
+                  <div style={{ fontSize: 14, color: "#8b949e" }}>{new Date(p.date).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}</div>
+                  {p.recorded_by && staffNames[p.recorded_by] && (
+                    <div style={{ fontSize: 11, color: "#6b7280" }}>by {staffNames[p.recorded_by]}</div>
+                  )}
+                </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 15, fontWeight: 700, color: "#3fb950" }}>{fmt(p.amount)}</span>
                   {canDelete && (
-                    <button onClick={() => onDeletePayment(borrower.id, p.id)} style={{ background: "#3a1a1a", color: "#f85149", border: "1px solid #da3633", borderRadius: 6, padding: "2px 8px", fontSize: 12, cursor: "pointer" }}>✕</button>
+                    confirmingId === p.id ? (
+                      <>
+                        <button
+                          onClick={() => { onDeletePayment(borrower.id, p.id); setConfirmingId(null); }}
+                          style={{ background: "#da3633", color: "#fff", border: "1px solid #da3633", borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                        >
+                          Confirm?
+                        </button>
+                        <button
+                          onClick={() => setConfirmingId(null)}
+                          style={{ background: "transparent", color: "#8b949e", border: "1px solid #30363d", borderRadius: 6, padding: "2px 8px", fontSize: 12, cursor: "pointer" }}
+                        >
+                          ✕
+                        </button>
+                      </>
+                    ) : (
+                      <button onClick={() => setConfirmingId(p.id)} style={{ background: "#3a1a1a", color: "#f85149", border: "1px solid #da3633", borderRadius: 6, padding: "2px 8px", fontSize: 12, cursor: "pointer" }}>✕</button>
+                    )
                   )}
                 </div>
               </div>
