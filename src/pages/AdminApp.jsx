@@ -9,6 +9,7 @@ import PaymentModal from "../components/PaymentModal";
 import Sidebar from "../components/Sidebar";
 import EditProfileModal from "../components/EditProfileModal";
 import UserDetailModal from "../components/UserDetailModal";
+import AddUserModal from "../components/AddUserModal";
 import Avatar from "../components/Avatar";
 import "../styles/responsive.css";
 
@@ -300,6 +301,7 @@ function AddBorrower({ onAdd }) {
 // ── Collect tab ──────────────────────────────────────────────────────────────
 function Collect({ borrowers, onRecord }) {
   const [amounts, setAmounts] = useState({});
+  const [search, setSearch] = useState("");
   const active = borrowers.filter((b) => !calcBorrower(b).isDone);
 
   if (!active.length)
@@ -310,6 +312,7 @@ function Collect({ borrowers, onRecord }) {
       </div>
     );
 
+  const filtered = active.filter((b) => b.name.toLowerCase().includes(search.trim().toLowerCase()));
   const todayStr = today();
 
   return (
@@ -317,8 +320,19 @@ function Collect({ borrowers, onRecord }) {
       <div style={{ fontSize: 13, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>
         Record Payment — {new Date().toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })}
       </div>
+      <input
+        style={{ ...inputStyle, marginBottom: 14, maxWidth: 320 }}
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="🔍 Search borrower..."
+      />
+      {!filtered.length ? (
+        <div style={{ textAlign: "center", padding: "32px 20px", color: "#8b949e" }}>
+          <p style={{ fontSize: 15 }}>No borrower matches "{search}".</p>
+        </div>
+      ) : (
       <div className="cards-grid">
-      {active.map((b) => {
+      {filtered.map((b) => {
         const c = calcBorrower(b);
         const perPayment = b.loan_type === "paluwagan" ? c.duePayment : b.daily_payment;
         const todayPaid = b.payments.filter((p) => p.date === todayStr).reduce((s, p) => s + p.amount, 0);
@@ -366,6 +380,7 @@ function Collect({ borrowers, onRecord }) {
         );
       })}
       </div>
+      )}
     </div>
   );
 }
@@ -378,6 +393,7 @@ function MonitorUsers({ borrowers }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const [adding, setAdding] = useState(false);
 
   const openMenu = (e, id) => {
     if (menuOpenId === id) { setMenuOpenId(null); return; }
@@ -400,24 +416,46 @@ function MonitorUsers({ borrowers }) {
     if (!error) loadUsers();
   };
 
+  const th = { textAlign: "left", padding: "8px 10px", fontSize: 11, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, borderBottom: "1px solid #30363d", whiteSpace: "nowrap" };
+  const td = { padding: "10px", fontSize: 14, borderBottom: "1px solid #21262d", whiteSpace: "nowrap" };
+
+  const header = (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1 }}>
+        Registered Users
+      </div>
+      <button onClick={() => setAdding(true)} style={{ ...btnStyle, background: "#f0b429", color: "#0d1117", fontSize: 13 }}>➕ Add User</button>
+    </div>
+  );
+
+  const modals = (
+    <>
+      {adding && (
+        <AddUserModal
+          onClose={() => setAdding(false)}
+          onSaved={() => { setAdding(false); loadUsers(); }}
+        />
+      )}
+    </>
+  );
+
   if (loading) return <div style={{ textAlign: "center", padding: 40, color: "#8b949e" }}>Loading...</div>;
 
   if (!users.length)
     return (
-      <div style={{ textAlign: "center", padding: "48px 20px", color: "#8b949e" }}>
-        <div style={{ fontSize: 50, marginBottom: 12 }}>👥</div>
-        <p style={{ fontSize: 16 }}>No registered users yet.</p>
+      <div>
+        {header}
+        <div style={{ textAlign: "center", padding: "48px 20px", color: "#8b949e" }}>
+          <div style={{ fontSize: 50, marginBottom: 12 }}>👥</div>
+          <p style={{ fontSize: 16 }}>No registered users yet.</p>
+        </div>
+        {modals}
       </div>
     );
 
-  const th = { textAlign: "left", padding: "8px 10px", fontSize: 11, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, borderBottom: "1px solid #30363d", whiteSpace: "nowrap" };
-  const td = { padding: "10px", fontSize: 14, borderBottom: "1px solid #21262d", whiteSpace: "nowrap" };
-
   return (
     <div>
-      <div style={{ fontSize: 13, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
-        Registered Users
-      </div>
+      {header}
       <div style={{ overflowX: "auto", border: "1px solid #30363d", borderRadius: 10 }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
@@ -429,7 +467,7 @@ function MonitorUsers({ borrowers }) {
               <th style={th}>Role</th>
               <th style={th}>Linked Loan</th>
               <th style={th}>Joined</th>
-              <th style={th}>Actions</th>
+              <th style={{ ...th, textAlign: "center", width: 80 }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -452,10 +490,10 @@ function MonitorUsers({ borrowers }) {
                   <td style={{ ...td, color: "#8b949e" }}>
                     {new Date(u.created_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
                   </td>
-                  <td style={{ ...td, textAlign: "center" }}>
+                  <td style={{ ...td, width: 80, textAlign: "center" }}>
                     <button
                       onClick={(e) => openMenu(e, u.id)}
-                      style={{ background: "transparent", border: "1px solid #30363d", color: "#8b949e", borderRadius: 6, width: 30, height: 30, fontSize: 16, cursor: "pointer" }}
+                      style={{ background: "transparent", border: "1px solid #30363d", color: "#8b949e", borderRadius: 6, width: 30, height: 30, fontSize: 16, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
                     >
                       ⋮
                     </button>
@@ -515,6 +553,8 @@ function MonitorUsers({ borrowers }) {
           onCancel={() => setDeleteTarget(null)}
         />
       )}
+
+      {modals}
     </div>
   );
 }

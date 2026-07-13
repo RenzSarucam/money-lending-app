@@ -2,6 +2,7 @@ import { useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { fmt } from "../utils/calc";
 import { btnStyle, inputStyle, labelStyle } from "../utils/theme";
+import { resizeImageToDataUrl } from "../utils/image";
 import Avatar from "./Avatar";
 
 export default function UserDetailModal({ user, linkedBorrower, onClose, onSaved }) {
@@ -11,8 +12,23 @@ export default function UserDetailModal({ user, linkedBorrower, onClose, onSaved
   const [role, setRole] = useState(user?.role || "user");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   if (!user) return null;
+
+  const pickPhoto = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    setErr("");
+    try {
+      setAvatarUrl(await resizeImageToDataUrl(file));
+    } catch (err) {
+      setErr(err.message);
+    }
+    setUploading(false);
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -36,8 +52,15 @@ export default function UserDetailModal({ user, linkedBorrower, onClose, onSaved
       <form onClick={(e) => e.stopPropagation()} onSubmit={submit} style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 14, padding: 20, width: "100%", maxWidth: 380, maxHeight: "85vh", overflowY: "auto" }}>
         <div style={{ fontSize: 17, fontWeight: 700, color: "#f0b429", marginBottom: 14 }}>👤 User Details</div>
 
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 14 }}>
           <Avatar name={`${firstName} ${lastName}`.trim() || user.email} avatarUrl={avatarUrl} size={64} />
+          <label style={{ ...btnStyle, background: "transparent", border: "1px solid #30363d", color: "#8b949e", fontSize: 12, cursor: "pointer" }}>
+            {uploading ? "Processing..." : "📷 Choose Photo"}
+            <input type="file" accept="image/*" onChange={pickPhoto} style={{ display: "none" }} />
+          </label>
+          {avatarUrl && (
+            <button type="button" onClick={() => setAvatarUrl("")} style={{ background: "transparent", border: "none", color: "#f85149", fontSize: 12, cursor: "pointer" }}>Remove photo</button>
+          )}
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
@@ -50,9 +73,6 @@ export default function UserDetailModal({ user, linkedBorrower, onClose, onSaved
             <input style={inputStyle} value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="dela Cruz" />
           </div>
         </div>
-
-        <label style={labelStyle}>Avatar Image URL (optional)</label>
-        <input style={{ ...inputStyle, marginBottom: 12 }} value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="https://..." />
 
         <label style={labelStyle}>Email</label>
         <input style={{ ...inputStyle, marginBottom: 12, opacity: 0.6 }} value={user.email || ""} disabled />
@@ -92,7 +112,7 @@ export default function UserDetailModal({ user, linkedBorrower, onClose, onSaved
 
         <div style={{ display: "flex", gap: 8 }}>
           <button type="button" onClick={onClose} style={{ ...btnStyle, flex: 1, background: "transparent", border: "1px solid #30363d", color: "#8b949e" }}>Cancel</button>
-          <button type="submit" disabled={busy} style={{ ...btnStyle, flex: 1, background: "#f0b429", color: "#0d1117" }}>{busy ? "Saving..." : "Save"}</button>
+          <button type="submit" disabled={busy || uploading} style={{ ...btnStyle, flex: 1, background: "#f0b429", color: "#0d1117" }}>{busy ? "Saving..." : "Save"}</button>
         </div>
       </form>
     </div>
