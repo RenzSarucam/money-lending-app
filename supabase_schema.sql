@@ -162,3 +162,35 @@ $$ language plpgsql security definer;
 -- (this only removes their app profile/access record, not their Supabase Auth login)
 create policy "profiles_delete_admin" on public.profiles
   for delete using (public.is_admin());
+
+-- 11. Make the signup trigger crash-proof: guard against duplicate
+-- triggers/profile rows, and never let an internal error block signup.
+drop trigger if exists on_auth_user_created on auth.users;
+
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profiles (id, role, full_name, email, first_name, last_name)
+  values (
+    new.id, 'user',
+    coalesce(new.raw_user_meta_data->>'full_name', new.email),
+    new.email,
+    new.raw_user_meta_data->>'first_name',
+    new.raw_user_meta_data->>'last_name'
+  )
+  on conflict (id) do nothing;
+
+  update public.borrowers
+  set user_id = new.id
+  where lower(email) = lower(new.email) and user_id is null;
+
+  return new;
+exception when others then
+  raise warning 'handle_new_user failed for %: %', new.email, sqlerrm;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
