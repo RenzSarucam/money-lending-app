@@ -25,7 +25,8 @@ export default function Signup() {
     });
     setBusy(false);
     if (error) {
-      setErr(error.message);
+      console.error("Signup error:", error);
+      setErr(error.message && error.message !== "{}" ? error.message : `Signup failed (status ${error.status || "?"}, code ${error.code || error.error_code || "unknown"}). Check Supabase Auth logs for details.`);
       return;
     }
     setDone(true);

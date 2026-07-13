@@ -35,7 +35,10 @@ export default function Login() {
         <input style={{ ...inputStyle, marginBottom: 12 }} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
 
         <label style={labelStyle}>Password</label>
-        <input style={{ ...inputStyle, marginBottom: 12 }} type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+        <input style={{ ...inputStyle, marginBottom: 8 }} type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+        <div style={{ textAlign: "right", marginBottom: 12 }}>
+          <Link to="/forgot-password" style={{ color: "#8b949e", fontSize: 11 }}>Forgot password?</Link>
+        </div>
 
         {err && <div style={{ color: "#f85149", fontSize: 12, marginBottom: 10 }}>⚠️ {err}</div>}
 

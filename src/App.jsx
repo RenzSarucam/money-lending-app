@@ -3,6 +3,8 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { supabaseConfigured } from "./lib/supabaseClient";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import AdminApp from "./pages/AdminApp";
 import UserApp from "./pages/UserApp";
 
@@ -29,6 +31,8 @@ function Gate() {
     <Routes>
       <Route path="/login" element={session ? <Navigate to="/" /> : <Login />} />
       <Route path="/signup" element={session ? <Navigate to="/" /> : <Signup />} />
+      <Route path="/forgot-password" element={session ? <Navigate to="/" /> : <ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route
         path="/"
         element={
