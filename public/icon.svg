@@ -2,5 +2,5 @@
   <rect width="512" height="512" rx="96" fill="#0d1117"/>
   <rect width="512" height="512" rx="96" fill="#f0b429" fill-opacity="0.08"/>
   <circle cx="256" cy="256" r="176" fill="#f0b429"/>
-  <text x="256" y="300" font-family="'Segoe UI', system-ui, sans-serif" font-size="220" font-weight="700" text-anchor="middle" fill="#0d1117">₱</text>
+  <text x="256" y="256" dy="0.35em" font-family="'Segoe UI', system-ui, sans-serif" font-size="220" font-weight="700" text-anchor="middle" fill="#0d1117">₱</text>
 </svg>
