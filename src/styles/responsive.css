@@ -136,6 +136,7 @@
     width: 260px;
     height: 100vh;
   height: 100dvh;
+    padding-top: calc(16px + env(safe-area-inset-top));
     transform: translateX(-100%);
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
   }
@@ -145,6 +146,7 @@
   .admin-sidebar.collapsed {
     width: 260px;
     padding: 16px;
+    padding-top: calc(16px + env(safe-area-inset-top));
   }
 
   .admin-sidebar-collapse-btn {
